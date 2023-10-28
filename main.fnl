@@ -30,6 +30,11 @@ See <https://github.com/rxi/lume>."
       "The blocks in the pile, initially empty."
       [])
 
+(var* score
+      "The total number of blocks that have vanished plus bonus for
+reaching bottom."
+      nil)
+
 (fn create-timer []
   "Returns a timer closure.
 
@@ -228,6 +233,7 @@ This function may be called multiple times, once per transition from
 This function may be called multiple times, once per transition from
 :menu to :game state."
   (set pile-blocks [])
+  (set score 0)
   (new-shadow-block)
   (set game-state :game))
 
@@ -304,6 +310,30 @@ This is an invalid position for the SHADOW-BLOCK to have."
   (lume.any (get-coordinates shadow-block)
             (lambda [[x y]] (> x (- width 1)))))
 
+(fn eq-block [b1 b2]
+  "Compare two blocks coordinate-wise."
+  (let [[x1 y1] b1
+        [x2 y2] b2]
+    (and (= x1 x2) (= y1 y2))))
+
+(fn member-pile-blocks? [b]
+  "Block is member of PILE-BLOCKS."
+  (lume.any pile-blocks (lambda [b1] (eq-block b b1))))
+
+(fn intersection []
+  "Blocks shared between SHADOW-BLOCK and PILE-BLOCKS."
+  (lume.filter (get-coordinates shadow-block)
+               member-pile-blocks?))
+
+(fn set-difference []
+  "Blocks of SHADOW-BLOCK not in PILE-BLOCKS."
+  (lume.filter (get-coordinates shadow-block)
+               (lambda [b] (not (member-pile-blocks? b)))))
+
+(fn shadow-block-pile-collision []
+  "Return the number of shared blocks between shadow-block and pile."
+  (length (intersection)))
+
 (fn rotate-shadow-block []
   "Rotate the SHADOW-BLOCK once."
   (set shadow-block.shape (shadow-block:shape-closure))
@@ -342,48 +372,34 @@ This is an invalid position for the SHADOW-BLOCK to have."
     (if (lume.randomchoice [true false])
         (table.insert pile-blocks [i (- height 1)]))))
 
-(fn game-update []
-  "Callback for updating frame before drawing in :game state."
-  (if (< player-movement-delta (player-timer))
-      (do (process-last-key)
-          (reset-timer player-timer)))
-  (if (< shadow-block-movement-delta (shadow-block-timer))
-      (do (move-block shadow-block :down)
-          (reset-timer shadow-block-timer)))
-  (if (< pile-movement-delta (pile-timer))
-      (do (add-pile-row)
-          (reset-timer pile-timer))))
+(fn shadow-meld []
+  "Meld the SHADOW-BLOCK in the PILE-BLOCKS.
 
-(fn menu-update []
-  "This is the update function for the :menu and :credits game states."
-  (if (< particle-spawn-time (particle-timer))
-      (do (add-particle)
-          (particle-timer 0)))
-  (process-last-key))
+Makes a new shadow block after melding."
+  (do (let [xs (intersection)
+            ys (set-difference)]
+        (if (= 0 (length xs))
+            ;; we have reached the bottom
+            (set score (+ score 20))
+            ;; else score the common blocks
+            (set score (+ score (length xs))))
+        (set pile-blocks
+             (lume.filter pile-blocks
+                          (lambda [b]
+                            (not (lume.any
+                                  xs
+                                  (lambda [b1] (eq-block b b1)))))))
+        (each [_ [x y] (ipairs ys)] (table.insert pile-blocks [x y]))))
+  (new-shadow-block))
 
-(fn love.update []
-  "Callback for updating frame before drawing."
-  (case game-state
-    :menu (menu-update)
-    :game (game-update)))
+(fn pile-reached-top []
+  "The pile has reached the top and the game is over."
+  (lume.any pile-blocks
+            (lambda [[x y]] (= y 0))))
 
-(fn block->px [n]
-  "Converts N block units to number of pixels."
-  (* px n))
-
-(fn game-draw []
-  "Callback when drawing in :game state."
-  ;; draw a separating barrier
-  (love.graphics.line (+ 1 (block->px width)) 0
-                      (+ 1 (block->px width)) (block->px height))
-  ;; draw the shadow-block
-  (lume.map (get-coordinates shadow-block)
-            (lambda [[x y]] (love.graphics.rectangle "fill" (block->px x)
-                                                     (block->px y) px px)))
-  ;; draw the pile
-  (lume.map pile-blocks
-            (lambda [[x y]] (love.graphics.rectangle "fill" (block->px x)
-                                                     (block->px y) px px))))
+(fn game-finish []
+  "Finish the game."
+  (menu-load))
 
 (fn draw-title []
   "Draw the 'Shadow Tetris' title at the top."
@@ -416,9 +432,21 @@ This is an invalid position for the SHADOW-BLOCK to have."
       (love.graphics.print msg 72 (+ 96 (* i 40)))
       (if (= i 5) (love.graphics.setFont menu-item-font)))))
 
+(fn block->px [n]
+  "Converts N block units to number of pixels."
+  (* px n))
+
+(fn draw-last-score []
+  "Draw the last games' score."
+  (let [(w h) (love.graphics.getDimensions)]
+    (if score
+        (love.graphics.print (string.format "Score: %d" score)
+                             (+ (block->px width) 20) (- h 50)))))
+
 (fn menu-draw []
   "Callback when drawing in the :menu or :credits state."
   (draw-title)
+  (draw-last-score)
   (each [i particle-closure (ipairs particles)]
     (let [[x y color] (particle-closure)]
       (if (< y 0)
@@ -434,6 +462,60 @@ This is an invalid position for the SHADOW-BLOCK to have."
   (if (= game-state :credits)
       (credits-draw)))
 
+(fn shadow-block-reached-bottom? []
+  "Returns true if the shadow block has reached bottom."
+  (lume.any (get-coordinates shadow-block)
+            (lambda [[x y]] (>= y (- height 1)))))
+
+(fn game-update []
+  "Callback for updating frame before drawing in :game state."
+  (if (< player-movement-delta (player-timer))
+      (do (process-last-key)
+          (reset-timer player-timer)))
+  (if (< shadow-block-movement-delta (shadow-block-timer))
+      (do (move-block shadow-block :down)
+          (reset-timer shadow-block-timer)))
+  (if (< pile-movement-delta (pile-timer))
+      (do (add-pile-row)
+          (reset-timer pile-timer)))
+  (if (or (< 0 (shadow-block-pile-collision))
+          (shadow-block-reached-bottom?))
+      (shadow-meld))
+  (if (pile-reached-top)
+      (game-finish)))
+
+(fn menu-update []
+  "This is the update function for the :menu and :credits game states."
+  (if (< particle-spawn-time (particle-timer))
+      (do (add-particle)
+          (particle-timer 0)))
+  (process-last-key))
+
+(fn love.update []
+  "Callback for updating frame before drawing."
+  (case game-state
+    :menu (menu-update)
+    :game (game-update)))
+
+(fn game-draw []
+  "Callback when drawing in :game state."
+  ;; draw a separating barrier
+  (love.graphics.line (+ 1 (block->px width)) 0
+                      (+ 1 (block->px width)) (block->px height))
+  ;; draw the shadow-block
+  (love.graphics.setColor purple-color)
+  (lume.map (get-coordinates shadow-block)
+            (lambda [[x y]] (love.graphics.rectangle "fill" (block->px x)
+                                                     (block->px y) px px)))
+  ;; draw the pile
+  (love.graphics.setColor white-color)
+  (lume.map pile-blocks
+            (lambda [[x y]] (love.graphics.rectangle "fill" (block->px x)
+                                                     (block->px y) px px)))
+  ;; draw the score
+  (love.graphics.print (string.format "Score: %d" score)
+                       (+ (block->px width) 20) 50))
+
 (fn love.draw []
   "Callback when drawing."
   (case game-state
@@ -448,7 +530,7 @@ menu. In :menu, exits."
     ;; we want a fresh menu, so redraw particles
     :game (menu-load)
     ;; we do not re-draw menu particles
-    :credits (set game-state :menu)
+    :credits (do (set last-key nil) (set game-state :menu))
     :menu (love.event.quit 0)))
 
 (fn kbd [keys]
