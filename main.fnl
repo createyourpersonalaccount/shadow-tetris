@@ -2,6 +2,7 @@
 
 (local* lume
         "A collection of functions for Lua, geared towards game development.
+
 See <https://github.com/rxi/lume>."
         (require :lume))
 
@@ -25,8 +26,14 @@ See <https://github.com/rxi/lume>."
       "The game state, one of :menu or :game."
       nil)
 
+(var* pile-blocks
+      "The blocks in the pile, initially empty."
+      [])
+
 (fn create-timer []
-  "Returns a timer closure. The timer can be reset if the value 0 is passed to it.
+  "Returns a timer closure.
+
+The timer can be reset if the value 0 is passed to it.
 
 Example usage:
 
@@ -49,11 +56,13 @@ Example usage:
         (create-timer))
 
 (var* player-timer
-        "The player timer. It is reset every time a player action occurs."
+        "The player timer. It is reset every time a player action
+occurs."
         (create-timer))
 
 (var* shadow-block-timer
-      "The shadow block timer. It is reset every time the shadow block moves."
+      "The shadow block timer. It is reset every time the shadow block
+moves."
       (create-timer))
 
 (var* pile-timer
@@ -166,15 +175,18 @@ the coordinates."
       "The shadow block falling from above.")
 
 (local* shadow-block-movement-delta
-        "The shadow block is updated every SHADOW-BLOCK-MOVEMENT-DELTA seconds."
+        "The shadow block is updated every SHADOW-BLOCK-MOVEMENT-DELTA
+seconds."
         1.0)
 
 (local* player-movement-delta
-        "The player input is updated every PLAYER-MOVEMENT-DELTA seconds."
+        "The player input is updated every PLAYER-MOVEMENT-DELTA
+seconds."
         0.1)
 
 (var* pile-movement-delta
-      "The pile is growing every PILE-MOVEMENT-DELTA seconds. This is variable."
+      "The pile is growing every PILE-MOVEMENT-DELTA seconds. This
+varies by level."
       2)
 
 (var* last-key
@@ -215,6 +227,7 @@ This function may be called multiple times, once per transition from
 
 This function may be called multiple times, once per transition from
 :menu to :game state."
+  (set pile-blocks [])
   (new-shadow-block)
   (set game-state :game))
 
@@ -319,6 +332,16 @@ This is an invalid position for the SHADOW-BLOCK to have."
   "Reset a timer closure."
   (timer 0))
 
+(fn add-pile-row []
+  "Add a row to the pile."
+  ;; move the pile up by 1 unit
+  (set pile-blocks
+       (lume.map pile-blocks (lambda [[x y]] [x (- y 1)])))
+  ;; add new row
+  (for [i 0 (- width 1)]
+    (if (lume.randomchoice [true false])
+        (table.insert pile-blocks [i (- height 1)]))))
+
 (fn game-update []
   "Callback for updating frame before drawing in :game state."
   (if (< player-movement-delta (player-timer))
@@ -326,7 +349,10 @@ This is an invalid position for the SHADOW-BLOCK to have."
           (reset-timer player-timer)))
   (if (< shadow-block-movement-delta (shadow-block-timer))
       (do (move-block shadow-block :down)
-          (reset-timer shadow-block-timer))))
+          (reset-timer shadow-block-timer)))
+  (if (< pile-movement-delta (pile-timer))
+      (do (add-pile-row)
+          (reset-timer pile-timer))))
 
 (fn menu-update []
   "This is the update function for the :menu and :credits game states."
@@ -352,6 +378,10 @@ This is an invalid position for the SHADOW-BLOCK to have."
                       (+ 1 (block->px width)) (block->px height))
   ;; draw the shadow-block
   (lume.map (get-coordinates shadow-block)
+            (lambda [[x y]] (love.graphics.rectangle "fill" (block->px x)
+                                                     (block->px y) px px)))
+  ;; draw the pile
+  (lume.map pile-blocks
             (lambda [[x y]] (love.graphics.rectangle "fill" (block->px x)
                                                      (block->px y) px px))))
 
