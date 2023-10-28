@@ -1,1 +1,9 @@
 * Shadow Tetris
+
+The mechanics of this game did not turn out as well as I had imagined.
+
+The font used is [[https://www.1001fonts.com/numbeato-font.html][Numbeato Font by *denny-0980]]*.
+
+Music by [[https://incompetech.com/][Kevin MacLeod]].
+
+Submitted to [[https://itch.io/jam/autumn-lisp-game-jam-2023][Autumn Lisp Game Jam 2023]].
