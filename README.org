@@ -1,6 +1,6 @@
 * Shadow Tetris
 
-#+BEGIN_COMMENT
+#+begin_comment
 
 ** Random choice from table
 
@@ -31,4 +31,4 @@ Do this in ~conf.lua~
 
 Note that you can't disable ~love.filesystem~ and ~love.data~; it's mandatory. The same goes for the ~love~ module itself. ~love.graphics~ needs ~love.window~ to be enabled. 
 
-#+END_COMMENT
+#+end_comment

@@ -22,6 +22,10 @@ See <https://github.com/kikito/bump.lua>."
         "The height of the tetris board, in blocks."
         20)
 
+(local* origin
+        "The origin of the tetris board, in blocks."
+        [0 0])
+
 (local* tetris-shapes
         "The available tetris shapes.
 
@@ -97,7 +101,14 @@ value nil.")
   (love.keyboard.setKeyRepeat true)
   (set shadow-block
        {:coordinates [4 0]
-        :shape (lume.randomchoice tetris-shapes)}))
+        :shape (lume.randomchoice tetris-shapes)
+        :get-coordinates (lambda [self]
+                           "Obtain the :SHAPE coordinates relative to :COORDINATES."
+                          (let [[x0 y0] self.coordinates]
+                            (lume.map shadow-block.shape
+                                      (lambda [[x y]]
+                                        [(+ x x0) (+ y y0)]))))
+        }))
 
 (fn move-block [block direction]
   "Move the BLOCK one unit in the given DIRECTION."
@@ -109,12 +120,24 @@ value nil.")
            :left [(- x 1) y]
            :up [x (- y 1)]))))
 
+(fn left-wall-collision? []
+  "Returns true if the SHADOW-BLOCK collides with the left wall."
+  (lume.any (shadow-block:get-coordinates)
+            (lambda [[x y]] (= x 0))))
+
+(fn right-wall-collision? []
+  "Returns true if the SHADOW-BLOCK collides with the right wall."
+  (lume.any (shadow-block:get-coordinates)
+            (lambda [[x y]] (= x (- width 1)))))
+
 (fn process-last-key []
   "Process LAST-KEY, the last key pressed by the user."
   (case last-key
     :down (move-block shadow-block :down)
-    :left (move-block shadow-block :left)
-    :right (move-block shadow-block :right))
+    :left (if (not (left-wall-collision?))
+              (move-block shadow-block :left))
+    :right (if (not (right-wall-collision?))
+               (move-block shadow-block :right)))
   (set last-key nil))
 
 (fn reset-timer [timer]
@@ -130,13 +153,19 @@ value nil.")
       (do (move-block shadow-block :down)
           (reset-timer shadow-block-timer))))
 
+(fn block->px [n]
+  "Converts N block units to number of pixels."
+  (* px n))
+
 (fn love.draw []
   "Callback when drawing."
-  (let [[x0 y0] shadow-block.coordinates]
-    (lume.map shadow-block.shape
-              (lambda [[x y]]
-                (love.graphics.rectangle "fill" (* px (+ x x0))
-                                         (* px (+ y y0)) px px)))))
+  ;; draw a separating barrier
+  (love.graphics.line (+ 1 (block->px width)) 0
+                      (+ 1 (block->px width)) (block->px height))
+  ;; draw the shadow-block
+  (lume.map (shadow-block:get-coordinates)
+            (lambda [[x y]] (love.graphics.rectangle "fill" (block->px x)
+                                                     (block->px y) px px))))
 
 (fn kbd [keys]
   "A closure that evaluates to false if its argument is not included in KEYS."
