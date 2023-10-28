@@ -578,3 +578,10 @@ argument which is the pressed key."
   "Callback when key is pressed. Looks up the key in KEYBINDINGS."
   (each [keys action (pairs keybindings)]
     (if (keys k) (action k))))
+
+(fn love.quit []
+  "Callback when game is quitting."
+  ;; audio won't stop by itself on browser with love.js
+  (love.audio.stop music)
+  ;; false quits the game
+  false)
