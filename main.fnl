@@ -35,6 +35,14 @@ See <https://github.com/rxi/lume>."
 reaching bottom."
       nil)
 
+(var* music
+      "The soundtrack.
+
+By composer and music producer Kevin MacLeod. Find a lot more of his
+excellent music (for free!) here, <https://incompetech.com/>.  This
+track is not necessarily representative of the rest of his work."
+      nil)
+
 (fn create-timer []
   "Returns a timer closure.
 
@@ -55,6 +63,10 @@ Example usage:
         (do (set start (love.timer.getTime))
             0)
         (- (love.timer.getTime) start))))
+
+(var* music-timer
+      "The music timer. The music loops every 1 minute."
+      (create-timer))
 
 (var* game-timer
         "The game timer. It should never be reset."
@@ -244,6 +256,8 @@ This function may be called multiple times, once per transition from
   (set credits-url-font (love.graphics.newFont "Numbeato-Italic.otf" 14))
   (set menu-item-font (love.graphics.newFont "Numbeato-Italic.otf" 24))
   (set menu-title-font (love.graphics.newFont "Numbeato-Italic.otf" 60))
+  (set music (love.audio.newSource "Farting Around.mp3" "static"))
+  (love.audio.play music)
   (menu-load))
 
 (var* selected-option
@@ -417,9 +431,11 @@ Makes a new shadow block after melding."
          "Font is 'Numbeato Font'"
          "  by 'denny-0980'."
          "You can find it here:"
-         "<https://www.1001fonts.com/numbeato-font.html>"
+         "https://www.1001fonts.com/numbeato-font.html"
          "Special thanks to"
-         "#fennel for the help!"])
+         "#fennel for the help!"
+         "Music by Kevin MacLeod."
+         "https://incompetech.com/"])
 
 (fn credits-draw []
   "Draw the credits."
@@ -429,7 +445,7 @@ Makes a new shadow block after melding."
     (love.graphics.setColor orange-color)
     (each [i msg (ipairs credits-text)]
       (if (= i 5) (love.graphics.setFont credits-url-font))
-      (love.graphics.print msg 72 (+ 96 (* i 40)))
+      (love.graphics.print msg 80 (+ 96 (* i 40)))
       (if (= i 5) (love.graphics.setFont menu-item-font)))))
 
 (fn block->px [n]
@@ -493,6 +509,10 @@ Makes a new shadow block after melding."
 
 (fn love.update []
   "Callback for updating frame before drawing."
+  (if (< 60 (music-timer))
+      (love.audio.rewind music)
+      (love.audio.play music)
+      (music-timer 0))
   (case game-state
     :menu (menu-update)
     :game (game-update)))
